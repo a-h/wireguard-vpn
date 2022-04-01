@@ -32,7 +32,7 @@ PublicKey = U4d+Xy7tumEDxnkdFUNsQXJaXOIe6ipWH9jg1Al9gxU=
 AllowedIPs = 10.8.0.3/32
 ```
 
-### Configuring MacOS
+### MacOS
 
 - https://serversideup.net/how-to-configure-a-wireguard-macos-client/
 
@@ -52,6 +52,10 @@ Endpoint = 13.41.28.7:51820
 AllowedIPs = 0.0.0.0/0
 ```
 
-## Configuring Linux
+### Linux
 
-#TODO
+### Ubuntu
+
+```
+apt-get update
+apt-get install wireguard

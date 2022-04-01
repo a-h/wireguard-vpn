@@ -9,15 +9,14 @@
 
 # Update dependencies and install wireguard.
 sudo apt-get update
-sudo apt-get install -y wireguard
+sudo apt-get install -y wireguard awscli
+
+# Get region.
+EC2_AVAIL_ZONE=`curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone`
+EC2_REGION="`echo \"$EC2_AVAIL_ZONE\" | sed 's/[a-z]$//'`"
 
 # Retrieve the secret from SSM parameter store.
-export PRIVATE_KEY=`aws ssm get-parameter --name "wireguardPrivateKey" --query 'Parameter.Value' --output text`
-
-aws ssm get-parameter --name "wireguardPrivateKey" \
-    --type "String" \
-    --value $PRIVATE_KEY \
-    --overwrite
+export PRIVATE_KEY=`aws ssm get-parameter --name "wireguardPrivateKey" --query 'Parameter.Value' --output text --region=$EC2_REGION`
 
 # Create the configuration.
 # Note that the Wireguard clients are defined in each Peer section.
