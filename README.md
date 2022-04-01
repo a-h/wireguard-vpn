@@ -20,6 +20,12 @@ Run in the cdk with `cdk deploy`.
 
 The output will include the `wireguardPublicIp`. Use this in the client configuration.
 
+If you need to get the public key again, you can run:
+
+```
+aws ssm get-parameter --name "wireguardPrivateKey" --query 'Parameter.Value' --output text | wg pubkey
+```
+
 ## Configuring clients
 
 Configure the client as below, then update the `user-data.sh` file to add additional `[Peer]` sections for each client, assigning each client (defined by its public key), an IP address.
@@ -47,15 +53,8 @@ Address = 10.0.0.3/24
 DNS = 1.1.1.1, 1.0.0.1
 
 [Peer]
-PublicKey = I2975sj04+VNWpHeFQZVEI5VfWlPxmsDqUT6VQkH/xE=
-Endpoint = 13.41.28.7:51820
+PublicKey = <your-server's-public-key>
+Endpoint = <your-server'sip>:51820
 AllowedIPs = 0.0.0.0/0
 ```
 
-### Linux
-
-### Ubuntu
-
-```
-apt-get update
-apt-get install wireguard
