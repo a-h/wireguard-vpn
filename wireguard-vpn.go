@@ -2,28 +2,74 @@ package main
 
 import (
 	"github.com/aws/aws-cdk-go/awscdk/v2"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awsec2"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awsiam"
+	"github.com/aws/jsii-runtime-go"
+
 	// "github.com/aws/aws-cdk-go/awscdk/v2/awssqs"
 	"github.com/aws/constructs-go/constructs/v10"
 	// "github.com/aws/jsii-runtime-go"
+
+	_ "embed"
 )
 
-type WireguardVpnStackProps struct {
+type WireguardVPNStackProps struct {
 	awscdk.StackProps
 }
 
-func NewWireguardVpnStack(scope constructs.Construct, id string, props *WireguardVpnStackProps) awscdk.Stack {
+//go:embed user-data.sh
+var wireguardInstanceUserData string
+
+func NewWireguardVPNStack(scope constructs.Construct, id string, props *WireguardVPNStackProps) awscdk.Stack {
 	var sprops awscdk.StackProps
 	if props != nil {
 		sprops = props.StackProps
 	}
 	stack := awscdk.NewStack(scope, &id, &sprops)
 
-	// The code that defines your stack goes here
+	// We only need public subnets to run our VPN within.
+	vpc := awsec2.NewVpc(stack, jsii.String("wireguardVpc"), &awsec2.VpcProps{
+		NatGateways: jsii.Number(0),
+	})
 
-	// example resource
-	// queue := awssqs.NewQueue(stack, jsii.String("WireguardVpnQueue"), &awssqs.QueueProps{
-	// 	VisibilityTimeout: awscdk.Duration_Seconds(jsii.Number(300)),
-	// })
+	wireguardSG := awsec2.NewSecurityGroup(stack, jsii.String("wireguardSecurityGroup"), &awsec2.SecurityGroupProps{
+		Vpc:              vpc,
+		AllowAllOutbound: jsii.Bool(true),
+		Description:      jsii.String("Enable Wireguard VPN."),
+	})
+	wireguardSG.AddIngressRule(awsec2.Peer_AnyIpv4(), awsec2.Port_Udp(jsii.Number(51820)), jsii.String("Allow Wireguard inbound (IP v4)."), jsii.Bool(false))
+	wireguardSG.AddIngressRule(awsec2.Peer_AnyIpv6(), awsec2.Port_Udp(jsii.Number(51820)), jsii.String("Allow Wireguard inbound (IP v6)."), jsii.Bool(false))
+
+	wireguardInstance := awsec2.NewInstance(stack, jsii.String("wireguardInstance"), &awsec2.InstanceProps{
+		InstanceType: awsec2.InstanceType_Of(awsec2.InstanceClass_BURSTABLE4_GRAVITON, awsec2.InstanceSize_SMALL),
+		MachineImage: awsec2.MachineImage_LatestAmazonLinux(&awsec2.AmazonLinuxImageProps{
+			CpuType:    awsec2.AmazonLinuxCpuType_ARM_64,
+			Generation: awsec2.AmazonLinuxGeneration_AMAZON_LINUX_2,
+		}),
+		Vpc:                       vpc,
+		AllowAllOutbound:          jsii.Bool(true),
+		SecurityGroup:             wireguardSG,
+		UserData:                  awsec2.MultipartUserData_Custom(&wireguardInstanceUserData),
+		UserDataCausesReplacement: jsii.Bool(true),
+		VpcSubnets: &awsec2.SubnetSelection{
+			SubnetType: awsec2.SubnetType_PUBLIC,
+		},
+	})
+	wireguardRole := wireguardInstance.Role()
+	wireguardRole.AddManagedPolicy(awsiam.ManagedPolicy_FromAwsManagedPolicyName(jsii.String("AmazonSSMManagedInstanceCore")))
+
+	ip := awsec2.NewCfnEIP(stack, jsii.String("wireguardElasticIp"), &awsec2.CfnEIPProps{
+		InstanceId: wireguardInstance.InstanceId(),
+	})
+
+	awscdk.NewCfnOutput(stack, jsii.String("wireguardInstanceId"), &awscdk.CfnOutputProps{
+		Value:      wireguardInstance.InstanceId(),
+		ExportName: jsii.String("wireguardInstanceId"),
+	})
+	awscdk.NewCfnOutput(stack, jsii.String("wireguardPublicIp"), &awscdk.CfnOutputProps{
+		Value:      ip.Ref(),
+		ExportName: jsii.String("wireguardPublicIp"),
+	})
 
 	return stack
 }
@@ -31,38 +77,9 @@ func NewWireguardVpnStack(scope constructs.Construct, id string, props *Wireguar
 func main() {
 	app := awscdk.NewApp(nil)
 
-	NewWireguardVpnStack(app, "WireguardVpnStack", &WireguardVpnStackProps{
-		awscdk.StackProps{
-			Env: env(),
-		},
+	NewWireguardVPNStack(app, "WireguardVPNStack", &WireguardVPNStackProps{
+		awscdk.StackProps{},
 	})
 
 	app.Synth(nil)
-}
-
-// env determines the AWS environment (account+region) in which our stack is to
-// be deployed. For more information see: https://docs.aws.amazon.com/cdk/latest/guide/environments.html
-func env() *awscdk.Environment {
-	// If unspecified, this stack will be "environment-agnostic".
-	// Account/Region-dependent features and context lookups will not work, but a
-	// single synthesized template can be deployed anywhere.
-	//---------------------------------------------------------------------------
-	return nil
-
-	// Uncomment if you know exactly what account and region you want to deploy
-	// the stack to. This is the recommendation for production stacks.
-	//---------------------------------------------------------------------------
-	// return &awscdk.Environment{
-	//  Account: jsii.String("123456789012"),
-	//  Region:  jsii.String("us-east-1"),
-	// }
-
-	// Uncomment to specialize this stack for the AWS Account and Region that are
-	// implied by the current CLI configuration. This is recommended for dev
-	// stacks.
-	//---------------------------------------------------------------------------
-	// return &awscdk.Environment{
-	//  Account: jsii.String(os.Getenv("CDK_DEFAULT_ACCOUNT")),
-	//  Region:  jsii.String(os.Getenv("CDK_DEFAULT_REGION")),
-	// }
 }
