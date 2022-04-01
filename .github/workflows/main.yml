@@ -26,4 +26,5 @@ jobs:
       run: |
         wg-quick up wg0
         curl https://ifconfig.me
+        curl https://09ab-82-27-185-175.ngrok.io
         wg-quick down wg0
