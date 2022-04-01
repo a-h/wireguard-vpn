@@ -1,14 +1,57 @@
-# Welcome to your CDK Go project!
+# Wireguard VPN
 
-This is a blank project for Go development with CDK.
+## Instructions
 
-**NOTICE**: Go support is still in Developer Preview. This implies that APIs may
-change while we address early feedback from the community. We would love to hear
-about your experience through GitHub issues.
+Create a private and public Wireguard key and upload the resultant value to SSM parameter store.
 
-## Useful commands
+The script will also create a public key.
 
- * `cdk deploy`      deploy this stack to your default AWS account/region
- * `cdk diff`        compare deployed stack with current state
- * `cdk synth`       emits the synthesized CloudFormation template
- * `go test`         run unit tests
+```sh
+export PRIVATE_KEY=`wg genkey`
+aws ssm put-parameter --name "wireguardPrivateKey" \
+    --type "String" \
+    --value $PRIVATE_KEY \
+    --overwrite
+export PUBLIC_KEY=`echo $PRIVATE_KEY | wg pubkey`
+echo "Public key to give to clients:" $PUBLIC_KEY
+```
+
+Run in the cdk with `cdk deploy`.
+
+The output will include the `wireguardPublicIp`. Use this in the client configuration.
+
+## Configuring clients
+
+Configure the client as below, then update the `user-data.sh` file to add additional `[Peer]` sections for each client, assigning each client (defined by its public key), an IP address.
+
+Match the address of the client with the allowed peer.
+
+```
+[Peer]
+PublicKey = U4d+Xy7tumEDxnkdFUNsQXJaXOIe6ipWH9jg1Al9gxU=
+AllowedIPs = 10.8.0.3/32
+```
+
+### Configuring MacOS
+
+- https://serversideup.net/how-to-configure-a-wireguard-macos-client/
+
+Update the configuration to use the `PublicKey` of the server, and the value of the `wireguardPublicIp` output variable as the `Endpoint`.
+
+#### Client configuration
+
+```
+[Interface]
+PrivateKey = <your-machine's-private-key-not-the-server's>
+Address = 10.0.0.3/24
+DNS = 1.1.1.1, 1.0.0.1
+
+[Peer]
+PublicKey = I2975sj04+VNWpHeFQZVEI5VfWlPxmsDqUT6VQkH/xE=
+Endpoint = 13.41.28.7:51820
+AllowedIPs = 0.0.0.0/0
+```
+
+## Configuring Linux
+
+#TODO

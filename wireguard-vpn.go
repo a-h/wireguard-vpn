@@ -4,11 +4,10 @@ import (
 	"github.com/aws/aws-cdk-go/awscdk/v2"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsec2"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsiam"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awsssm"
 	"github.com/aws/jsii-runtime-go"
 
-	// "github.com/aws/aws-cdk-go/awscdk/v2/awssqs"
 	"github.com/aws/constructs-go/constructs/v10"
-	// "github.com/aws/jsii-runtime-go"
 
 	_ "embed"
 )
@@ -32,6 +31,8 @@ func NewWireguardVPNStack(scope constructs.Construct, id string, props *Wireguar
 		NatGateways: jsii.Number(0),
 	})
 
+	param := awsssm.StringParameter_FromStringParameterName(stack, jsii.String("wireguardPrivateKey"), jsii.String("wireguardPrivateKey"))
+
 	wireguardSG := awsec2.NewSecurityGroup(stack, jsii.String("wireguardSecurityGroup"), &awsec2.SecurityGroupProps{
 		Vpc:              vpc,
 		AllowAllOutbound: jsii.Bool(true),
@@ -41,11 +42,8 @@ func NewWireguardVPNStack(scope constructs.Construct, id string, props *Wireguar
 	wireguardSG.AddIngressRule(awsec2.Peer_AnyIpv6(), awsec2.Port_Udp(jsii.Number(51820)), jsii.String("Allow Wireguard inbound (IP v6)."), jsii.Bool(false))
 
 	wireguardInstance := awsec2.NewInstance(stack, jsii.String("wireguardInstance"), &awsec2.InstanceProps{
-		InstanceType: awsec2.InstanceType_Of(awsec2.InstanceClass_BURSTABLE4_GRAVITON, awsec2.InstanceSize_SMALL),
-		MachineImage: awsec2.MachineImage_LatestAmazonLinux(&awsec2.AmazonLinuxImageProps{
-			CpuType:    awsec2.AmazonLinuxCpuType_ARM_64,
-			Generation: awsec2.AmazonLinuxGeneration_AMAZON_LINUX_2,
-		}),
+		InstanceType:              awsec2.InstanceType_Of(awsec2.InstanceClass_BURSTABLE4_GRAVITON, awsec2.InstanceSize_SMALL),
+		MachineImage:              awsec2.MachineImage_FromSsmParameter(jsii.String("/aws/service/canonical/ubuntu/server/20.04/stable/current/arm64/hvm/ebs-gp2/ami-id"), &awsec2.SsmParameterImageOptions{}),
 		Vpc:                       vpc,
 		AllowAllOutbound:          jsii.Bool(true),
 		SecurityGroup:             wireguardSG,
@@ -57,7 +55,9 @@ func NewWireguardVPNStack(scope constructs.Construct, id string, props *Wireguar
 	})
 	wireguardRole := wireguardInstance.Role()
 	wireguardRole.AddManagedPolicy(awsiam.ManagedPolicy_FromAwsManagedPolicyName(jsii.String("AmazonSSMManagedInstanceCore")))
+	param.GrantRead(wireguardInstance)
 
+	// Give the machine a static IP.
 	ip := awsec2.NewCfnEIP(stack, jsii.String("wireguardElasticIp"), &awsec2.CfnEIPProps{
 		InstanceId: wireguardInstance.InstanceId(),
 	})
