@@ -25,6 +25,7 @@ jobs:
     - name: Find your IP
       run: |
         wg-quick up wg0
-        curl https://ifconfig.me
-        curl https://09ab-82-27-185-175.ngrok.io
+        # Set up an ngrok or similar to check that the remote IP is being used.
+        # Because Github Actions will redact the IP adress if you try and write it out.
+        # curl https://xxxxxx.ngrok.io
         wg-quick down wg0
