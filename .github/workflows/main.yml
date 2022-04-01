@@ -1,0 +1,29 @@
+name: CI
+ 
+# Test that the Wireguard server can be connected to from Github Actions.
+# See https://github.com/ackersonde/simple-wireguard-deploy
+
+on: workflow_dispatch
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install wireguard
+      run: sudo apt-get install wireguard
+
+    - name: Create wireguard tunnel configuration
+      run: |
+        sed -i -e "s@{{CLIENT_PRIVATE_KEY}}@${{ secrets.CLIENT_PRIVATE_KEY }}@" $GITHUB_WORKSPACE/test/wg0.conf
+        sed -i -e "s@{{SERVER_PUBLIC_KEY}}@${{ secrets.SERVER_PUBLIC_KEY }}@" $GITHUB_WORKSPACE/test/wg0.conf
+        sed -i -e "s@{{SERVER_IP}}@${{ secrets.SERVER_IP }}@" $GITHUB_WORKSPACE/test/wg0.conf
+        sudo cp $GITHUB_WORKSPACE/test/wg0.conf /etc/wireguard/
+
+    - name: Find your IP
+      run: |
+        wg-quick up wg0
+        curl https://ifconfig.me
+        wg-quick down wg0
